@@ -1,0 +1,296 @@
+﻿<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title>Kendo Grid State Manager Demo</title>    
+    <link href="http://cdn.kendostatic.com/2014.3.1411/styles/kendo.common.min.css" rel="stylesheet" />
+    <link href="http://cdn.kendostatic.com/2014.3.1411/styles/kendo.blueopal.min.css" rel="stylesheet" />
+    
+    <style>
+        body {
+            font-size: 12px;
+            padding: 10px;
+        }
+    </style>
+
+    <script src="http://cdn.kendostatic.com/2014.3.1411/js/jquery.min.js"></script>
+    <script src="http://cdn.kendostatic.com/2014.3.1411/js/kendo.all.min.js" type="text/javascript"></script>
+</head>
+<body>
+    <div id="gridstate"></div>
+    <br />
+    <div id="grid"></div>
+    
+    <script type="text/javascript">
+
+        // listen for doc ready because this is js bin and my code is not really "in" the HTML
+        // where I can control it.
+        $(function () {
+
+
+            // wrap the widget in a closure. Not necessary in doc ready, but a good practice
+            (function ($) {
+
+                // shorten references to variables. this is better for uglification
+                var kendo = window.kendo,
+                    ui = kendo.ui,
+                    Widget = ui.Widget;
+
+                // declare the custom input widget by extenting the very base kendo widget
+                var GridStateManager = Widget.extend({
+                    _uid: null,
+                    _combobox: null,
+                    _clearButton: null,
+                    _deleteButton: null,
+                    _saveButton: null,
+                    _gridId: null,
+                    _selectedStateId: null,
+
+                    // define the init function which is called by the base widget
+                    init: function (element, options) {
+
+                        // cache a reference to this
+                        var that = this;
+
+                        // make the base call to initialize this widget
+                        Widget.fn.init.call(this, element, options);
+
+                        // actually create the UI elements
+                        that._create();
+                    },
+
+                    // the options object contains anything that will be passed in when the widget
+                    // is actually used
+                    options: {
+                        name: "GridStateManager",
+                        comboBoxWidth: 480,
+                        gridId: ""
+                    },
+
+                    // this function creates each of the UI elements and appends them to the element
+                    // that was selected out of the DOM for this widget
+                    _create: function () {
+
+                        // cache a reference to this
+                        var that = this;
+
+                        that._uid = new Date().getTime();
+                        that._gridId = "#" + that.options.gridId;
+
+                        $(that.element).append(kendo.format("<input id='gridStateComboBox_{0}' />", that._uid));
+
+
+                        // Create the combobox.
+                        that._combobox = $(kendo.format("#gridStateComboBox_{0}", that._uid)).kendoComboBox({
+                            dataTextField: "Name",
+                            dataValueField: "State",
+                            dataSource: that.options.comboBoxDataSource,
+                            filter: "contains",
+                            suggest: true,
+                            placeholder: "Start typing to search or set the name to save the current grid state",
+                            select: function (e) {
+                                var dataItem = this.dataItem(e.item.index());
+                                var state = dataItem.State;
+                                var grid = $(that._gridId).data("kendoGrid");
+                                grid.setOptions(JSON.parse(state));
+                                that._setSelectedStateId(dataItem.Id);
+                            }
+                        }).data("kendoComboBox");
+
+                        that._combobox.wrapper.width(that.options.comboBoxWidth);
+
+                        // create the add/update button
+                        $(that.element).append(kendo.format("&nbsp;<button  type='button' id='gridStateSaveBtn_{0}'>Add</button>", that._uid));
+                        that._saveButton = $(kendo.format("#gridStateSaveBtn_{0}", that._uid)).kendoButton({
+                            click: function (e) {
+                                var grid = $(that._gridId).data("kendoGrid");
+                                var state = kendo.stringify(grid.getOptions());
+                                var name = that._combobox.text();
+                                if (name != "") {
+                                    if (that._selectedStateId == null) {
+                                        var newState = that._combobox.dataSource.add({ Name: name, State: state });
+                                        that._combobox.dataSource.sync();
+                                        that._setSelectedStateId(newState.Id);
+                                    } else {
+                                        var dataItem = that._combobox.dataSource.get(that._selectedStateId);
+                                        dataItem.set("Name", name);
+                                        dataItem.set("State", state);
+                                        that._combobox.dataSource.sync();
+                                    }
+                                }
+                            }
+                        });
+
+                        // create the delete button
+                        $(that.element).append(kendo.format("&nbsp;<button type='button' id='gridStateDeleteBtn_{0}'>Delete</button>", that._uid));
+                        that._deleteButton = $(kendo.format("#gridStateDeleteBtn_{0}", that._uid)).kendoButton({
+                            enable: false,
+                            click: function (e) {
+                                that._combobox.text("");
+                                that._combobox.selectedIndex = (-1);
+                                var dataItem = that._combobox.dataSource.get(that._selectedStateId);
+                                that._combobox.dataSource.remove(dataItem);
+                                that._combobox.dataSource.sync();
+                                that._setSelectedStateId(null);
+                            }
+                        });
+
+                        // create the clear button
+                        $(that.element).append(kendo.format("&nbsp;<button type='button' id='gridStateClearBtn_{0}'>Clear</button>", that._uid));
+                        that._clearButton = $(kendo.format("#gridStateClearBtn_{0}", that._uid)).kendoButton({
+                            enable: false,
+                            click: function (e) {
+                                that._combobox.text("");
+                                that._combobox.selectedIndex = (-1);
+                                that._setSelectedStateId(null);
+
+                                // To avoid depend on instantation order to get the initial state to reset, directly reset sorting, filtering and grouping
+                                var grid = $(that._gridId).data("kendoGrid");
+                                grid.dataSource.sort({});
+                                grid.dataSource.filter({});
+
+                                if (grid.dataSource.group().length > 0)
+                                    grid.dataSource.group([]);
+                                grid.dataSource.read();
+                            }
+                        });
+                    },
+
+                    _setSelectedStateId: function (id) {
+                        this._selectedStateId = id;
+                        this._deleteButton.data("kendoButton").enable(id != null);
+                        this._clearButton.data("kendoButton").enable(id != null);
+                        if (id != null) {
+                            this._saveButton.text("Update");
+                        } else {
+                            this._saveButton.text("Add");
+                        }
+                    }
+
+                });
+
+                // add the widget to the ui namespace so it's available
+                ui.plugin(GridStateManager);
+
+            })(jQuery);
+
+
+            $("#grid").kendoGrid({
+                dataSource: {
+                    type: "odata",
+                    transport: {
+                        read: "http://demos.telerik.com/kendo-ui/service/Northwind.svc/Orders"
+                    },
+                    schema: {
+                        model: {
+                            fields: {
+                                OrderID: { type: "number" },
+                                Freight: { type: "number" },
+                                ShipName: { type: "string" },
+                                OrderDate: { type: "date" },
+                                ShipCity: { type: "string" }
+                            }
+                        }
+                    },
+                    pageSize: 20,
+                    serverPaging: true,
+                    serverFiltering: true,
+                    serverSorting: true
+                },
+                height: 550,
+                filterable: true,
+                groupable: true,
+                sortable: true,
+                pageable: true,
+                columns: [
+                    {
+                        field: "OrderID",
+                        filterable: false
+                    },
+                    "Freight",
+                    {
+                        field: "OrderDate",
+                        title: "Order Date",
+                        format: "{0:MM/dd/yyyy}"
+                    }, {
+                        field: "ShipName",
+                        title: "Ship Name"
+                    }, {
+                        field: "ShipCity",
+                        title: "Ship City"
+                    }
+                ]
+            });
+
+
+            var states = [];
+
+            function getIndexById(id) {
+                var l = states.length;
+
+                for (var j; j < l; j++) {
+                    if (states[j].Id == id) {
+                        return j;
+                    }
+                }
+                return null;
+            }
+
+            $("#gridstate").kendoGridStateManager({
+                gridId: "grid",
+                comboBoxDataSource: new kendo.data.DataSource({ // Using local data editing for demo purposes
+                    transport: {
+                        read: function (e) {
+                            // on success
+                            e.success(states);
+                            // on failure
+                            //e.error("XHR response", "status code", "error message");
+                        },
+                        create: function (e) {
+                            // assign an ID to the new item
+                            e.data.Id = kendo.guid();
+                            // save data item to the original datasource
+                            states.push(e.data);
+                            // on success
+                            e.success(e.data);
+                            // on failure
+                            //e.error("XHR response", "status code", "error message");
+                        },
+                        update: function (e) {
+                            // locate item in original datasource and update it
+                            states[getIndexById(e.data.Id)] = e.data;
+                            // on success
+                            e.success();
+                            // on failure
+                            //e.error("XHR response", "status code", "error message");
+                        },
+                        destroy: function (e) {
+                            // locate item in original datasource and remove it
+                            states.splice(getIndexById(e.data.Id), 1);
+                            // on success
+                            e.success();
+                            // on failure
+                            //e.error("XHR response", "status code", "error message");
+                        }
+                    },
+                    error: function (e) {
+                        // handle data operation error
+                        alert("Status: " + e.status + "; Error message: " + e.errorThrown);
+                    },
+                    schema: {
+                        model: {
+                            id: "Id",
+                            fields: {
+                                Id: { editable: false, nullables: true },
+                                Name: { validation: { required: true } },
+                                State: { validation: { required: true } }
+                            }
+                        }
+                    }
+                })
+            });
+
+        });
+
+    </script>
+</body>
+</html>
