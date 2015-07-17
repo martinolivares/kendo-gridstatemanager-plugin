@@ -2,7 +2,7 @@
 A kendo plugin to manage kendo grid states (filtering/sorting/grouping)
 
 ## Basic Usage ##
-This plugin allow manage (add, update, remove) a collection of kendo grid settings (grid states in kendo jargon). So, you could create, re-use and share grid "views".
+This plugin allow manage (add, update, remove) a collection of kendo grid settings like filters, sorting and grouping (grid states in kendo jargon). So, you could create, re-use and share grid "views".
 
 ![Grid State Manager in Action](https://raw.githubusercontent.com/martinolivares/kendo-gridstatemanager-plugin/master/images/kendoGridStateManager.png)
 
